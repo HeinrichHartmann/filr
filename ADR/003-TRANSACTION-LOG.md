@@ -2,8 +2,6 @@
 
 This document specifies the canonical transaction log format for filr warehouses.
 
----
-
 ## 1. Design principles
 
 ### 1.1 Never lose data
@@ -43,8 +41,6 @@ Versioning via name: `drop2`, `drop3`.
 No separate manifest file. The log IS the folder structure.
 Enumerate `_log/` to discover all entries.
 
----
-
 ## 2. Warehouse layout
 
 ```text
@@ -74,8 +70,6 @@ Enumerate `_log/` to discover all entries.
 
 `config.toml` + `_log/` is sufficient to rebuild everything.
 
----
-
 ## 3. Configuration
 
 ### `config.toml`
@@ -94,8 +88,6 @@ algorithm = "blake3"
 Default: `blake3`
 
 Fixed at warehouse creation. Cannot be changed.
-
----
 
 ## 4. Log entry format
 
@@ -134,8 +126,6 @@ NNNN_drop/
 ```
 
 This is the canonical/pure representation (CAS form), not a filesystem tree.
-
----
 
 ## 5. Drop format
 
@@ -198,8 +188,6 @@ Each blob is the raw file content. Hash is the full hash (not truncated).
 
 **Note:** Blobs are duplicated across drops. This is intentional — each log entry is self-contained.
 
----
-
 ## 6. Drop ID format
 
 ```text
@@ -216,8 +204,6 @@ d_{YYYYMMDD}_{HHMMSS}_{hash8}
 Hash input: `hash(header.json || entries.jsonl)` in canonical form.
 
 Example: `d_20260401_143211_a7c3e9f1`
-
----
 
 ## 7. State tracking
 
@@ -263,8 +249,6 @@ On startup or rebuild:
 2. Compare with `applied_log`
 3. Apply any unapplied entries in sequence order
 
----
-
 ## 8. Import workflow
 
 `filr drop fs-import <path>` does:
@@ -285,8 +269,6 @@ On startup or rebuild:
 
 If crash after step 4 but before step 5: log entry exists, will be applied on next startup.
 
----
-
 ## 9. Rebuild workflow
 
 `filr warehouse rebuild` does:
@@ -303,8 +285,6 @@ If crash after step 4 but before step 5: log entry exists, will be applied on ne
 
 After rebuild, warehouse is in consistent state derived purely from log.
 
----
-
 ## 10. Integrity verification
 
 `filr warehouse check` does:
@@ -318,8 +298,6 @@ After rebuild, warehouse is in consistent state derived purely from log.
 3. Verify `state.db` is consistent with log
 4. Report any issues
 
----
-
 ## 11. Future log entry types
 
 v1 only has `drop`. Future types:
@@ -331,8 +309,6 @@ v1 only has `drop`. Future types:
 | `view` | Define a filesystem view |
 
 Each would have its own folder structure within `_log/NNNN_<type>/`.
-
----
 
 ## 12. Why not deduplicate blobs?
 
@@ -350,8 +326,6 @@ But the log itself remains self-contained. Dedup would be:
 * Not canonical
 
 For v1, we accept the storage overhead for simplicity and robustness.
-
----
 
 ## 13. Summary
 

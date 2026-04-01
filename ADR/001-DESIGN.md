@@ -1,3 +1,5 @@
+# filr Design Principles
+
 ## 1. Purpose
 
 The warehouse is a system for storing, organizing, and retrieving human-relevant document batches with strong provenance, replayability, and flexible filesystem materializations.
@@ -12,8 +14,6 @@ The cleanest current framing is:
 > A drop is an immutable provenance-bearing collection of immutable documents.
 > A document is immutable metadata plus one blob body.
 > Filesystem views are derived materializations of warehouse state.
-
----
 
 ## 2. Design principles
 
@@ -54,19 +54,11 @@ The design must not require eager materialization of all documents, blobs, or vi
 
 This is an important implementation constraint, but not itself a logical concept.
 
----
-
 ## 3. Logical objects
 
-## 3.1 Blob
+### 3.1 Blob
 
 A blob is immutable binary content.
-
-Concise form:
-
-[
-\text{blob} = \text{bytes}
-]
 
 Properties:
 
@@ -77,20 +69,12 @@ Properties:
 
 A blob is a storage primitive, not the main semantic object.
 
----
-
-## 3.2 Document
+### 3.2 Document
 
 A document is an immutable logical object consisting of:
 
 * a **header**: structured metadata
 * a **body**: one blob
-
-Concise form:
-
-[
-\text{document} = \text{header} + \text{body blob}
-]
 
 Properties:
 
@@ -105,9 +89,7 @@ A document belongs to exactly one drop.
 
 Documents inherit context from their parent drop for query purposes.
 
----
-
-## 3.3 Drop
+### 3.3 Drop
 
 A drop is the first-class warehouse collection unit.
 
@@ -115,12 +97,6 @@ A drop consists of:
 
 * a **drop header**
 * a **collection of documents**
-
-Concise form:
-
-[
-\text{drop} = \text{drop header} + [\text{document}]
-]
 
 Properties:
 
@@ -138,8 +114,6 @@ Examples:
 * one filing session
 * one imported folder snapshot
 * one derived output batch
-
----
 
 ## 4. Identity and inheritance
 
@@ -180,8 +154,6 @@ This means selectors may range over:
 
 This is a query convenience and a clean way to expose provenance context without mutating documents.
 
----
-
 ## 5. Canonical drop representation
 
 The currently preferred canonical representation for a drop is:
@@ -189,16 +161,14 @@ The currently preferred canonical representation for a drop is:
 ```text
 drop/
   header.json
-  entries.jsonl        # or entries.sqlite
+  entries.jsonl
   blobs/
-    <sha-keyed files>
+    <hash>
 ```
 
 This is currently the best canonical storage model.
 
----
-
-## 5.1 `header.json`
+### 5.1 `header.json`
 
 `header.json` stores drop-level metadata.
 
@@ -211,9 +181,7 @@ Typical contents:
 
 This is the canonical drop header.
 
----
-
-## 5.2 `entries.jsonl` or `entries.sqlite`
+### 5.2 `entries.jsonl`
 
 This stores the document collection for the drop.
 
@@ -235,20 +203,9 @@ Conceptually:
 
 This is the canonical document index for the drop.
 
-JSONL is attractive because it is:
+JSONL is attractive because it is inspectable, streamable, and simple.
 
-* inspectable
-* streamable
-* simple
-* in-band
-
-SQLite may be attractive for larger drops or faster indexed access.
-
-These should be treated as equivalent logical representations of the same drop contents.
-
----
-
-## 5.3 `blobs/`
+### 5.3 `blobs/`
 
 `blobs/` stores the physical blob bodies, keyed by content hash.
 
@@ -259,8 +216,6 @@ Properties:
 * content-addressed
 * immutable
 * dedup-friendly
-
----
 
 ## 6. Why this representation is preferred
 
@@ -278,8 +233,6 @@ It is cleaner than using a Unix tree as the canonical representation, because it
 
 Filesystem trees remain useful, but they are better treated as derived views.
 
----
-
 ## 7. Filesystem views
 
 There is **no single canonical archive filesystem**.
@@ -292,9 +245,7 @@ These views exist because users and ordinary tools need normal files in normal f
 
 This is an important practical capability, but it is not the canonical warehouse representation.
 
----
-
-## 7.1 Filesystem view definition
+### 7.1 Filesystem view definition
 
 A filesystem view is defined by:
 
@@ -304,23 +255,9 @@ A filesystem view is defined by:
 * an **ordering / collision rule**
 * an **update policy**
 
-Conceptually:
+Conceptually: `V = (S, P, T, O, U)` where S=selector, P=path mapping, T=target root, O=ordering rule, U=update policy.
 
-[
-V = (S, P, T, O, U)
-]
-
-where:
-
-* (S) = selector
-* (P) = path mapping
-* (T) = target root
-* (O) = ordering / collision rule
-* (U) = update policy
-
----
-
-## 7.2 Selector
+### 7.2 Selector
 
 A selector chooses which documents are in scope.
 
@@ -331,20 +268,12 @@ A selector ranges over effective metadata, including:
 
 A selector is conceptually a predicate over metadata.
 
----
-
-## 7.3 Path mapping
+### 7.3 Path mapping
 
 A path mapping is a pure function from effective document metadata to:
 
 * a relative filesystem path
 * or a null/sentinel value meaning “do not materialize”
-
-Conceptually:
-
-[
-P : \text{effective metadata} \to \text{path} \cup {\bot}
-]
 
 Properties:
 
@@ -355,9 +284,7 @@ Properties:
 
 If multiple documents map to the same path, collisions are resolved by a stable ordering rule.
 
----
-
-## 7.4 Target directory
+### 7.4 Target directory
 
 A view materializes into some concrete target directory on a machine.
 
@@ -371,9 +298,7 @@ Examples:
 
 There is no requirement that all warehouse content be visible under one global root.
 
----
-
-## 7.5 Ordering and collision rule
+### 7.5 Ordering and collision rule
 
 Because multiple documents may map to the same target path, a filesystem view needs a deterministic ordering rule.
 
@@ -385,9 +310,7 @@ A reasonable default is:
 
 The exact rule can be refined later, but deterministic order is required.
 
----
-
-## 7.6 Update policy
+### 7.6 Update policy
 
 Filesystem views should generally be **pull-based** rather than push-based.
 
@@ -400,8 +323,6 @@ That means:
 This is operationally simpler and more reliable.
 
 Push-based updating may exist later, but should not be assumed as the core model.
-
----
 
 ## 8. History and provenance
 
@@ -420,8 +341,6 @@ For now, the stable statement is:
 
 The exact formal model of transforms, derivations, and document version evolution remains open.
 
----
-
 ## 9. Explicit non-goals for this snapshot
 
 This document intentionally does **not** define:
@@ -439,8 +358,6 @@ This document intentionally does **not** define:
 
 These are important, but not yet clean enough.
 
----
-
 ## 10. Current clean summary
 
 The design currently understood cleanly is:
@@ -455,8 +372,8 @@ The design currently understood cleanly is:
 
 ```text
 header.json
-entries.jsonl/sqlite
-blobs/sha-keyed-files
+entries.jsonl
+blobs/<hash>
 ```
 
 * filesystem access happens through zero or more derived filesystem views
@@ -464,10 +381,6 @@ blobs/sha-keyed-files
 * filesystem views are defined by selector + path mapping + target + update policy
 * filesystem views are convenience materializations, not canonical storage
 
----
-
 ## 11. One-sentence design statement
 
-> filr / DWH is a history-aware store of immutable drops, where each drop contains immutable documents over immutable blobs, and where user-facing filesystem access is provided through derived filesystem views rather than a single canonical archive tree.
-
-
+> filr is a history-aware store of immutable drops, where each drop contains immutable documents over immutable blobs, and where user-facing filesystem access is provided through derived filesystem views rather than a single canonical archive tree.
