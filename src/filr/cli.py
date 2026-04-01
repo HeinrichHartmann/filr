@@ -1,5 +1,6 @@
 """filr CLI - Command-line interface for warehouse management."""
 
+import json
 import sys
 from pathlib import Path
 
@@ -84,7 +85,48 @@ def warehouse_rebuild():
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def drop_list(output_json):
     """List all drops in the warehouse."""
-    click.echo("Listing drops")
+    warehouse_root = wh.get_warehouse_root()
+
+    if not wh.warehouse_exists(warehouse_root):
+        click.echo(f"Error: No warehouse found at {warehouse_root}", err=True)
+        sys.exit(1)
+
+    try:
+        drops = drop_mod.list_drops(warehouse_root)
+
+        if output_json:
+            click.echo(json.dumps(drops, indent=2))
+        else:
+            # Human-readable table
+            if not drops:
+                click.echo("No drops found")
+                return
+
+            # Header
+            click.echo(f"{'Drop ID':<36} {'Created':<20} {'Docs':>6} {'Size':>10} Message")
+            click.echo("-" * 100)
+
+            # Rows
+            for d in drops:
+                drop_id = d["drop_id"]
+                created = d["created_at"][:19]  # Truncate timestamp
+                doc_count = d["document_count"]
+                total_bytes = d["total_bytes"]
+                message = d.get("message") or ""
+
+                # Format size
+                if total_bytes < 1024:
+                    size_str = f"{total_bytes}B"
+                elif total_bytes < 1024 * 1024:
+                    size_str = f"{total_bytes / 1024:.1f}KB"
+                else:
+                    size_str = f"{total_bytes / (1024 * 1024):.1f}MB"
+
+                click.echo(f"{drop_id:<36} {created:<20} {doc_count:>6} {size_str:>10} {message}")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @drop.command("inspect")
@@ -92,7 +134,43 @@ def drop_list(output_json):
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def drop_inspect(drop_id, output_json):
     """Inspect one drop in detail."""
-    click.echo(f"Inspecting drop: {drop_id}")
+    warehouse_root = wh.get_warehouse_root()
+
+    if not wh.warehouse_exists(warehouse_root):
+        click.echo(f"Error: No warehouse found at {warehouse_root}", err=True)
+        sys.exit(1)
+
+    try:
+        details = drop_mod.inspect_drop(warehouse_root, drop_id)
+
+        if output_json:
+            click.echo(json.dumps(details, indent=2))
+        else:
+            # Human-readable format
+            click.echo(f"Drop ID:         {details['drop_id']}")
+            click.echo(f"Created:         {details['created_at']}")
+            if details.get("message"):
+                click.echo(f"Message:         {details['message']}")
+            click.echo(f"Document count:  {details['document_count']}")
+            click.echo(f"Total bytes:     {details['total_bytes']}")
+            click.echo(f"Log location:    {details['log_location']}")
+
+            # Show additional header fields
+            header = details["header"]
+            extra_fields = {
+                k: v for k, v in header.items() if k not in ["drop_id", "created_at", "message"]
+            }
+            if extra_fields:
+                click.echo("\nAdditional metadata:")
+                for key, value in extra_fields.items():
+                    click.echo(f"  {key}: {value}")
+
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @drop.command("fs-import")

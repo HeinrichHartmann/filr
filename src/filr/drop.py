@@ -283,3 +283,115 @@ def fs_import(
 
     finally:
         conn.close()
+
+
+def list_drops(warehouse_root: Path) -> list[dict]:
+    """List all drops in the warehouse.
+
+    Args:
+        warehouse_root: Warehouse root directory
+
+    Returns:
+        list[dict]: List of drop metadata dicts with:
+            - drop_id
+            - created_at
+            - message (optional)
+            - document_count
+            - total_bytes
+    """
+    db_path = warehouse_root / "state.db"
+    conn = db.get_connection(db_path)
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT drop_id, created_at, message, document_count, total_bytes
+            FROM drops
+            ORDER BY seq
+            """
+        )
+
+        drops = []
+        for row in cursor.fetchall():
+            drops.append(
+                {
+                    "drop_id": row[0],
+                    "created_at": row[1],
+                    "message": row[2],
+                    "document_count": row[3],
+                    "total_bytes": row[4],
+                }
+            )
+
+        return drops
+
+    finally:
+        conn.close()
+
+
+def inspect_drop(warehouse_root: Path, drop_id: str) -> dict:
+    """Inspect a drop in detail.
+
+    Args:
+        warehouse_root: Warehouse root directory
+        drop_id: Drop ID to inspect
+
+    Returns:
+        dict: Drop details including:
+            - drop_id
+            - created_at
+            - message (if present)
+            - document_count
+            - total_bytes
+            - header (full drop header)
+            - log_location (path to drop in _log)
+
+    Raises:
+        ValueError: If drop not found
+    """
+    # Get basic info from state.db
+    db_path = warehouse_root / "state.db"
+    conn = db.get_connection(db_path)
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT seq, created_at, message, document_count, total_bytes
+            FROM drops
+            WHERE drop_id = ?
+            """,
+            (drop_id,),
+        )
+
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Drop not found: {drop_id}")
+
+        seq = row[0]
+        log_location = warehouse_root / "_log" / f"{seq:04d}_drop"
+
+    finally:
+        conn.close()
+
+    # Read full header from log
+    header_path = log_location / "header.json"
+    if not header_path.exists():
+        raise ValueError(f"Drop header not found at {header_path}")
+
+    with open(header_path) as f:
+        header = json.load(f)
+
+    # Build result
+    result = {
+        "drop_id": drop_id,
+        "created_at": header.get("created_at"),
+        "message": header.get("message"),
+        "document_count": row[3],
+        "total_bytes": row[4],
+        "header": header,
+        "log_location": str(log_location),
+    }
+
+    return result
