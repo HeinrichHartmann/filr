@@ -34,11 +34,13 @@ def hash_file(path: Path) -> str:
     return f"blake3:{hasher.hexdigest()}"
 
 
-def hash_dict(data: dict) -> str:
-    """Compute blake3 hash of a dict (via JSON serialization).
+def hash_json(data: dict | list) -> str:
+    """Compute blake3 hash of JSON-serializable data.
+
+    Works with dicts, lists, or any JSON-serializable structure.
 
     Args:
-        data: Dictionary to hash
+        data: Dictionary, list, or other JSON-serializable data to hash
 
     Returns:
         str: Hash in format "blake3:hexdigest"
@@ -50,6 +52,12 @@ def hash_dict(data: dict) -> str:
 
     serialized = json.dumps(data, sort_keys=True, separators=(",", ":"))
     return hash_bytes(serialized.encode("utf-8"))
+
+
+# Deprecated alias for backwards compatibility
+def hash_dict(data: dict) -> str:
+    """Deprecated: Use hash_json() instead."""
+    return hash_json(data)
 
 
 def verify_hash(data: bytes, expected_hash: str) -> bool:

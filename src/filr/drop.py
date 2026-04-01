@@ -48,10 +48,10 @@ def compute_drop_integrity_hash(header: dict, entries: list[dict]) -> str:
     """
     # Hash header without drop_id (circular dependency)
     header_for_hash = {k: v for k, v in header.items() if k != "drop_id"}
-    header_hash = h.hash_dict(header_for_hash)
+    header_hash = h.hash_json(header_for_hash)
 
     # Hash entries content (canonical JSON of entire list)
-    entries_hash = h.hash_dict(entries)
+    entries_hash = h.hash_json(entries)
 
     # Collect blob hashes in order
     blob_hashes = [entry["blob_hash"] for entry in entries]
