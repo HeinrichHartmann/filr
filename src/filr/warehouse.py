@@ -100,3 +100,96 @@ def load_config(root: Path) -> dict:
 
     with open(config_path, "rb") as f:
         return tomllib.load(f)
+
+
+def get_stats(root: Path) -> dict:
+    """Get warehouse statistics.
+
+    Args:
+        root: Warehouse root directory
+
+    Returns:
+        dict: Statistics including:
+            - warehouse_root: Path to warehouse
+            - warehouse_name: Name from config
+            - drop_count: Number of drops
+            - document_count: Total number of documents
+            - total_bytes: Total size in bytes
+            - created_at: Warehouse creation timestamp
+
+    Raises:
+        FileNotFoundError: If warehouse doesn't exist
+    """
+    if not warehouse_exists(root):
+        raise FileNotFoundError(f"No warehouse found at {root}")
+
+    # Load config
+    config = load_config(root)
+
+    # Query state.db for aggregated stats
+    from . import db
+
+    db_path = root / "state.db"
+    conn = db.get_connection(db_path)
+
+    try:
+        cursor = conn.cursor()
+
+        # Count drops
+        cursor.execute("SELECT COUNT(*) FROM drops")
+        drop_count = cursor.fetchone()[0]
+
+        # Sum documents and bytes
+        cursor.execute("SELECT SUM(document_count), SUM(total_bytes) FROM drops")
+        row = cursor.fetchone()
+        document_count = row[0] or 0
+        total_bytes = row[1] or 0
+
+        return {
+            "warehouse_root": str(root),
+            "warehouse_name": config["warehouse"]["name"],
+            "drop_count": drop_count,
+            "document_count": document_count,
+            "total_bytes": total_bytes,
+            "created_at": config["warehouse"]["created_at"],
+        }
+
+    finally:
+        conn.close()
+
+
+def get_log(root: Path) -> list[dict]:
+    """Get warehouse transaction log.
+
+    Args:
+        root: Warehouse root directory
+
+    Returns:
+        list[dict]: List of log entries with:
+            - seq: Sequence number
+            - entry_name: Log entry name (e.g. "0001_drop")
+            - applied_at: Timestamp when applied
+
+    Raises:
+        FileNotFoundError: If warehouse doesn't exist
+    """
+    if not warehouse_exists(root):
+        raise FileNotFoundError(f"No warehouse found at {root}")
+
+    from . import db
+
+    db_path = root / "state.db"
+    conn = db.get_connection(db_path)
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT seq, entry_name, applied_at FROM applied_log ORDER BY seq")
+
+        entries = []
+        for row in cursor.fetchall():
+            entries.append({"seq": row[0], "entry_name": row[1], "applied_at": row[2]})
+
+        return entries
+
+    finally:
+        conn.close()

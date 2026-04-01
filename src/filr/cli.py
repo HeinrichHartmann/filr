@@ -58,7 +58,40 @@ def warehouse_init(name):
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def warehouse_stats(output_json):
     """Show warehouse summary statistics."""
-    click.echo("Warehouse stats")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        stats = wh.get_stats(warehouse_root)
+
+        if output_json:
+            click.echo(json.dumps(stats, indent=2))
+        else:
+            # Human-readable format
+            click.echo(f"Warehouse root:    {stats['warehouse_root']}")
+            click.echo(f"Warehouse name:    {stats['warehouse_name']}")
+            click.echo(f"Created:           {stats['created_at']}")
+            click.echo(f"Drop count:        {stats['drop_count']}")
+            click.echo(f"Document count:    {stats['document_count']}")
+
+            # Format total bytes
+            total_bytes = stats["total_bytes"]
+            if total_bytes < 1024:
+                size_str = f"{total_bytes} bytes"
+            elif total_bytes < 1024 * 1024:
+                size_str = f"{total_bytes / 1024:.2f} KB"
+            elif total_bytes < 1024 * 1024 * 1024:
+                size_str = f"{total_bytes / (1024 * 1024):.2f} MB"
+            else:
+                size_str = f"{total_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+            click.echo(f"Total size:        {size_str}")
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @warehouse.command("check")
@@ -72,7 +105,37 @@ def warehouse_check(output_json):
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def warehouse_log(output_json):
     """Show the warehouse transaction log."""
-    click.echo("Warehouse log")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        entries = wh.get_log(warehouse_root)
+
+        if output_json:
+            click.echo(json.dumps(entries, indent=2))
+        else:
+            # Human-readable table
+            if not entries:
+                click.echo("No log entries found")
+                return
+
+            # Header
+            click.echo(f"{'Seq':>4}  {'Entry Name':<20}  {'Applied At'}")
+            click.echo("-" * 60)
+
+            # Rows
+            for entry in entries:
+                seq = entry["seq"]
+                entry_name = entry["entry_name"]
+                applied_at = entry["applied_at"][:19]  # Truncate timestamp
+
+                click.echo(f"{seq:>4}  {entry_name:<20}  {applied_at}")
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @warehouse.command("rebuild")
