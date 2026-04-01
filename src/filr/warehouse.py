@@ -1,9 +1,10 @@
 """Warehouse management - location resolution and initialization."""
 
 import os
-from pathlib import Path
-from datetime import datetime, timezone
 import tomllib
+from datetime import UTC, datetime
+from pathlib import Path
+
 import tomli_w
 
 
@@ -64,7 +65,7 @@ def init_warehouse(root: Path, name: str | None = None) -> None:
     config = {
         "warehouse": {
             "name": name or "main",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
         "hash": {
             "algorithm": "blake3",
@@ -77,6 +78,7 @@ def init_warehouse(root: Path, name: str | None = None) -> None:
 
     # Create state.db
     from . import db
+
     db.init_db(root / "state.db")
 
 

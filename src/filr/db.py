@@ -3,7 +3,6 @@
 import sqlite3
 from pathlib import Path
 
-
 # Schema from ADR-003
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS applied_log (

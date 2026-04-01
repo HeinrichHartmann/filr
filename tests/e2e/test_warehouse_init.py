@@ -2,7 +2,6 @@
 
 import sqlite3
 import tomllib
-from pathlib import Path
 
 from filr.cli import main
 

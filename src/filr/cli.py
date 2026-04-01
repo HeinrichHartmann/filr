@@ -1,6 +1,7 @@
 """filr CLI - Command-line interface for warehouse management."""
 
 import sys
+
 import click
 
 from . import warehouse as wh
