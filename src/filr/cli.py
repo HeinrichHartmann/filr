@@ -1,6 +1,9 @@
 """filr CLI - Command-line interface for warehouse management."""
 
+import sys
 import click
+
+from . import warehouse as wh
 
 
 @click.group()
@@ -35,7 +38,16 @@ def document():
 @click.argument("name", required=False)
 def warehouse_init(name):
     """Initialize a warehouse at the resolved warehouse root."""
-    click.echo(f"Initializing warehouse: {name or 'unnamed'}")
+    root = wh.get_warehouse_root()
+
+    try:
+        wh.init_warehouse(root, name)
+        click.echo(f"Initialized warehouse at {root}")
+        if name:
+            click.echo(f"Warehouse name: {name}")
+    except FileExistsError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @warehouse.command("stats")
@@ -83,8 +95,8 @@ def drop_inspect(drop_id, output_json):
 @drop.command("fs-import")
 @click.argument("path", type=click.Path(exists=True))
 @click.option("-m", "--message", help="Drop message")
-@click.option("-h", "--header", help="Additional JSON metadata")
-def drop_fs_import(path, message, header):
+@click.option("-H", "--header", "header_json", help="Additional JSON metadata")
+def drop_fs_import(path, message, header_json):
     """Import filesystem content as a new drop."""
     click.echo(f"Importing from: {path}")
 
