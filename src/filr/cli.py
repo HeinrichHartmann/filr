@@ -1,9 +1,11 @@
 """filr CLI - Command-line interface for warehouse management."""
 
 import sys
+from pathlib import Path
 
 import click
 
+from . import drop as drop_mod
 from . import warehouse as wh
 
 
@@ -99,7 +101,20 @@ def drop_inspect(drop_id, output_json):
 @click.option("-H", "--header", "header_json", help="Additional JSON metadata")
 def drop_fs_import(path, message, header_json):
     """Import filesystem content as a new drop."""
-    click.echo(f"Importing from: {path}")
+    warehouse_root = wh.get_warehouse_root()
+
+    if not wh.warehouse_exists(warehouse_root):
+        click.echo(f"Error: No warehouse found at {warehouse_root}", err=True)
+        click.echo("Run 'filr warehouse init' first", err=True)
+        sys.exit(1)
+
+    try:
+        source_path = Path(path)
+        drop_id = drop_mod.fs_import(warehouse_root, source_path, message, header_json)
+        click.echo(drop_id)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @drop.command("fs-export")

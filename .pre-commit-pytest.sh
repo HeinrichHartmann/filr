@@ -1,11 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Pre-commit hook script to run pytest
-# Load direnv environment
+# Requires direnv to be set up with .envrc
 set -e
 
-# Source direnv if available
-if command -v direnv >/dev/null 2>&1; then
-    eval "$(direnv export bash 2>/dev/null)" || true
-fi
-
+eval "$(direnv export bash)"
 pytest tests/
