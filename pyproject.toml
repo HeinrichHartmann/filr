@@ -12,3 +12,8 @@ dependencies = [
 
 [project.scripts]
 filr = "filr.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
