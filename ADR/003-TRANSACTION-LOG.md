@@ -188,7 +188,9 @@ Each blob is the raw file content. Hash is the full hash (not truncated).
 
 **Note:** Blobs are duplicated across drops. This is intentional — each log entry is self-contained.
 
-## 6. Drop ID format
+## 6. Drop ID and integrity
+
+### 6.1 Drop ID format
 
 ```text
 d_{YYYYMMDD}_{HHMMSS}_{hash8}
@@ -199,11 +201,42 @@ d_{YYYYMMDD}_{HHMMSS}_{hash8}
 | `d_` | Fixed prefix |
 | `YYYYMMDD` | UTC date |
 | `HHMMSS` | UTC time |
-| `hash8` | First 8 hex chars of drop content hash |
-
-Hash input: `hash(header.json || entries.jsonl)` in canonical form.
+| `hash8` | First 8 hex chars of drop integrity hash |
 
 Example: `d_20260401_143211_a7c3e9f1`
+
+### 6.2 Drop integrity hash (Git-like)
+
+The drop integrity hash covers the entire drop contents, similar to a Git commit:
+
+```
+drop_hash = hash(
+  hash(header_without_drop_id) ||
+  hash(entries_content) ||
+  blob_hash_1 ||
+  blob_hash_2 ||
+  ...
+)
+```
+
+This is a Merkle-tree style hash:
+* If you trust the drop_hash, you can verify everything
+* If you trust blob hashes, you can skip re-hashing blob content
+* Partial or corrupted drops are detectable
+
+The `drop_id` field in header.json is excluded from the hash input (would be circular).
+
+### 6.3 Document identity
+
+Documents are value objects. Identity IS content:
+* Same header + same blob = same document
+* If anything changes, it's a different document
+
+For v1, documents are identified by `drop_id + import_path`. This is sufficient because:
+* We don't mutate documents
+* We don't have cross-drop document references yet
+
+Future versions may add explicit document IDs or version chains.
 
 ## 7. State tracking
 
@@ -251,23 +284,37 @@ On startup or rebuild:
 
 ## 8. Import workflow
 
+### 8.1 Concurrency
+
+Concurrent imports are not supported. The import process acquires an exclusive lock on `state.db` before proceeding.
+
+### 8.2 Import steps
+
 `filr drop fs-import <path>` does:
 
-1. **Scan source** — enumerate files, compute hashes
-2. **Allocate sequence** — next seq = max(existing) + 1
-3. **Generate drop_id** — from timestamp + content hash
-4. **Write log entry atomically**:
-   - Create `_log/NNNN_drop/` folder
-   - Write `header.json`
+1. **Acquire lock** — exclusive lock on state.db
+2. **Scan source** — enumerate files, compute blob hashes
+3. **Allocate sequence** — next seq = max(existing) + 1
+4. **Compute drop integrity hash** — Merkle hash of all content
+5. **Generate drop_id** — from timestamp + integrity hash
+6. **Write to temp folder**:
+   - Create `_log/_tmp_NNNN_drop/` folder
+   - Write `header.json` (with drop_id)
    - Write `entries.jsonl`
    - Copy blobs to `blobs/`
-   - fsync
-5. **Apply to state.db**:
+   - fsync all files
+7. **Atomic commit** — rename `_tmp_NNNN_drop/` to `NNNN_drop/`
+8. **Apply to state.db**:
    - Insert into `applied_log`
    - Insert into `drops`
-6. **Print drop_id**
+9. **Release lock**
+10. **Print drop_id**
 
-If crash after step 4 but before step 5: log entry exists, will be applied on next startup.
+### 8.3 Crash recovery
+
+* Crash before step 7: temp folder exists, no committed entry. Cleanup on next startup.
+* Crash after step 7 but before step 8: log entry exists but not in state.db. Will be applied on next startup.
+* Incomplete drops (missing blobs, corrupt files) are detectable via integrity hash.
 
 ## 9. Rebuild workflow
 
