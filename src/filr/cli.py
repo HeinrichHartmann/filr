@@ -98,7 +98,31 @@ def warehouse_stats(output_json):
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def warehouse_check(output_json):
     """Run a full warehouse integrity and consistency check."""
-    click.echo("Checking warehouse integrity")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        errors = wh.check(warehouse_root)
+
+        if output_json:
+            result = {"errors": errors, "ok": len(errors) == 0}
+            click.echo(json.dumps(result, indent=2))
+            sys.exit(0 if len(errors) == 0 else 1)
+        else:
+            if not errors:
+                click.echo("OK - Warehouse integrity check passed")
+                sys.exit(0)
+            else:
+                click.echo(f"FAILED - Found {len(errors)} error(s):", err=True)
+                for error in errors:
+                    click.echo(f"  - {error}", err=True)
+                sys.exit(1)
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @warehouse.command("log")
@@ -141,7 +165,23 @@ def warehouse_log(output_json):
 @warehouse.command("rebuild")
 def warehouse_rebuild():
     """Rebuild derived warehouse state from the transaction log."""
-    click.echo("Rebuilding warehouse")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        click.echo(f"Rebuilding warehouse at {warehouse_root}...")
+        wh.rebuild(warehouse_root)
+        click.echo("Warehouse rebuilt successfully")
+        sys.exit(0)
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @drop.command("list")
