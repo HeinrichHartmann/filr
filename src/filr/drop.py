@@ -395,3 +395,108 @@ def inspect_drop(warehouse_root: Path, drop_id: str) -> dict:
     }
 
     return result
+
+
+def export_drop(warehouse_root: Path, drop_id: str, target_folder: Path) -> None:
+    """Export a drop in canonical CAS form.
+
+    Creates target folder with:
+    - header.json
+    - entries.jsonl
+    - blobs/<hash> (content-addressed)
+
+    Args:
+        warehouse_root: Warehouse root directory
+        drop_id: Drop ID to export
+        target_folder: Target directory for export
+
+    Raises:
+        ValueError: If drop not found
+        FileExistsError: If target folder already exists
+    """
+    if target_folder.exists():
+        raise FileExistsError(f"Target folder already exists: {target_folder}")
+
+    # Find drop in warehouse
+    details = inspect_drop(warehouse_root, drop_id)
+    log_location = Path(details["log_location"])
+
+    if not log_location.exists():
+        raise ValueError(f"Drop log location not found: {log_location}")
+
+    # Create target folder
+    target_folder.mkdir(parents=True)
+
+    # Copy entire drop directory structure
+    import shutil
+
+    # Copy header.json
+    shutil.copy2(log_location / "header.json", target_folder / "header.json")
+
+    # Copy entries.jsonl
+    shutil.copy2(log_location / "entries.jsonl", target_folder / "entries.jsonl")
+
+    # Copy blobs directory
+    source_blobs = log_location / "blobs"
+    target_blobs = target_folder / "blobs"
+    shutil.copytree(source_blobs, target_blobs)
+
+
+def fs_export_drop(warehouse_root: Path, drop_id: str, target_folder: Path) -> None:
+    """Export a drop in filesystem form with root/ tree.
+
+    Creates target folder with:
+    - header.json
+    - entries.jsonl
+    - root/ (reconstructed filesystem tree from import_path metadata)
+
+    Args:
+        warehouse_root: Warehouse root directory
+        drop_id: Drop ID to export
+        target_folder: Target directory for export
+
+    Raises:
+        ValueError: If drop not found
+        FileExistsError: If target folder already exists
+    """
+    if target_folder.exists():
+        raise FileExistsError(f"Target folder already exists: {target_folder}")
+
+    # Find drop in warehouse
+    details = inspect_drop(warehouse_root, drop_id)
+    log_location = Path(details["log_location"])
+
+    if not log_location.exists():
+        raise ValueError(f"Drop log location not found: {log_location}")
+
+    # Create target folder
+    target_folder.mkdir(parents=True)
+
+    # Copy metadata files
+    import shutil
+
+    shutil.copy2(log_location / "header.json", target_folder / "header.json")
+    shutil.copy2(log_location / "entries.jsonl", target_folder / "entries.jsonl")
+
+    # Read entries to reconstruct filesystem tree
+    entries_path = log_location / "entries.jsonl"
+    blobs_dir = log_location / "blobs"
+    root_dir = target_folder / "root"
+    root_dir.mkdir()
+
+    with open(entries_path) as f:
+        for line in f:
+            entry = json.loads(line)
+            import_path = entry["import_path"]
+            blob_hash = entry["blob_hash"]
+
+            # Target file path in root/
+            target_file = root_dir / import_path
+
+            # Create parent directories
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Copy blob to target location
+            _, hex_digest = h.parse_hash(blob_hash)
+            blob_path = blobs_dir / hex_digest
+            shutil.copy2(blob_path, target_file)

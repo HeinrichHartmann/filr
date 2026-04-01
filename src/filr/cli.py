@@ -263,7 +263,26 @@ def drop_fs_import(path, message, header_json):
 @click.argument("folder", type=click.Path())
 def drop_fs_export(drop_id, folder):
     """Export a drop using the default filesystem realization."""
-    click.echo(f"Exporting drop {drop_id} to {folder}")
+    warehouse_root = wh.get_warehouse_root()
+
+    if not wh.warehouse_exists(warehouse_root):
+        click.echo(f"Error: No warehouse found at {warehouse_root}", err=True)
+        sys.exit(1)
+
+    try:
+        target_folder = Path(folder)
+        drop_mod.fs_export_drop(warehouse_root, drop_id, target_folder)
+        click.echo(f"Exported drop {drop_id} to {folder}")
+        click.echo(f"Filesystem tree in: {folder}/root/")
+    except FileExistsError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @drop.command("export")
@@ -271,7 +290,26 @@ def drop_fs_export(drop_id, folder):
 @click.argument("folder", type=click.Path())
 def drop_export(drop_id, folder):
     """Export a drop in pure canonical CAS form."""
-    click.echo(f"Exporting drop {drop_id} (CAS) to {folder}")
+    warehouse_root = wh.get_warehouse_root()
+
+    if not wh.warehouse_exists(warehouse_root):
+        click.echo(f"Error: No warehouse found at {warehouse_root}", err=True)
+        sys.exit(1)
+
+    try:
+        target_folder = Path(folder)
+        drop_mod.export_drop(warehouse_root, drop_id, target_folder)
+        click.echo(f"Exported drop {drop_id} (CAS) to {folder}")
+        click.echo("Structure: header.json, entries.jsonl, blobs/")
+    except FileExistsError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @document.command("head")
