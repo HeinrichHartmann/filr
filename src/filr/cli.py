@@ -6,6 +6,7 @@ from pathlib import Path
 
 import click
 
+from . import document as doc_mod
 from . import drop as drop_mod
 from . import warehouse as wh
 
@@ -357,21 +358,123 @@ def drop_export(drop_id, folder):
 @click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 def document_head(drop_url, output_json):
     """Show formatted document metadata."""
-    click.echo(f"Document head: {drop_url}")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        # Parse URL
+        drop_id, import_path = doc_mod.parse_drop_url(drop_url)
+
+        # Resolve document
+        doc = doc_mod.resolve_document(warehouse_root, drop_id, import_path)
+
+        if output_json:
+            # JSON output
+            output = {
+                "import_path": doc["import_path"],
+                "import_name": doc["import_name"],
+                "blob_hash": doc["blob_hash"],
+                "blob_size": doc["blob_size"],
+                "drop_id": doc["drop_header"]["drop_id"],
+                "drop_message": doc["drop_header"].get("message"),
+                "drop_created_at": doc["drop_header"]["created_at"],
+            }
+            click.echo(json.dumps(output, indent=2))
+        else:
+            # Human-readable format
+            click.echo(f"Import path:  {doc['import_path']}")
+            click.echo(f"Import name:  {doc['import_name']}")
+            click.echo(f"Blob hash:    {doc['blob_hash']}")
+            click.echo(f"Blob size:    {doc['blob_size']}")
+            click.echo(f"Drop ID:      {doc['drop_header']['drop_id']}")
+            if doc["drop_header"].get("message"):
+                click.echo(f"Drop message: {doc['drop_header']['message']}")
+            click.echo(f"Drop created: {doc['drop_header']['created_at']}")
+
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @document.command("body")
 @click.argument("drop_url")
 def document_body(drop_url):
     """Print raw document body bytes."""
-    click.echo(f"Document body: {drop_url}")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        # Parse URL
+        drop_id, import_path = doc_mod.parse_drop_url(drop_url)
+
+        # Resolve document
+        doc = doc_mod.resolve_document(warehouse_root, drop_id, import_path)
+
+        # Read blob and output to stdout (binary mode)
+        blob_path = Path(doc["blob_path"])
+        with open(blob_path, "rb") as f:
+            sys.stdout.buffer.write(f.read())
+
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 @document.command("show")
 @click.argument("drop_url")
 def document_show(drop_url):
     """Show metadata plus body in a human-oriented way."""
-    click.echo(f"Document show: {drop_url}")
+    warehouse_root = wh.get_warehouse_root()
+
+    try:
+        # Parse URL
+        drop_id, import_path = doc_mod.parse_drop_url(drop_url)
+
+        # Resolve document
+        doc = doc_mod.resolve_document(warehouse_root, drop_id, import_path)
+
+        # Show metadata
+        click.echo("--- Metadata ---")
+        click.echo(f"Import path: {doc['import_path']}")
+        click.echo(f"Import name: {doc['import_name']}")
+        click.echo(f"Blob size:   {doc['blob_size']}")
+        click.echo(f"Blob hash:   {doc['blob_hash']}")
+        click.echo(f"Drop ID:     {doc['drop_header']['drop_id']}")
+        if doc["drop_header"].get("message"):
+            click.echo(f"Drop message: {doc['drop_header']['message']}")
+
+        # Try to show content
+        click.echo("\n--- Content ---")
+        blob_path = Path(doc["blob_path"])
+
+        # Read first 4KB to detect if binary
+        with open(blob_path, "rb") as f:
+            sample = f.read(4096)
+
+        # Simple heuristic: if null bytes present, treat as binary
+        if b"\x00" in sample:
+            click.echo("(Binary content - use 'document body' to extract)")
+        else:
+            # Try to decode as text
+            try:
+                with open(blob_path, encoding="utf-8") as f:
+                    content = f.read(2048)  # Read first 2KB
+                    click.echo(content)
+                    if len(content) >= 2048:
+                        click.echo("\n(Content truncated - use 'document body' for full content)")
+            except UnicodeDecodeError:
+                click.echo("(Binary content - use 'document body' to extract)")
+
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
