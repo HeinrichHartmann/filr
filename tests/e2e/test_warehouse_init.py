@@ -82,6 +82,7 @@ def test_warehouse_init_default_name(cli_runner, tmp_warehouse):
     """Test warehouse init without specifying a name."""
     result = cli_runner.invoke(main, ["warehouse", "init"])
     assert result.exit_code == 0
+    assert "Warehouse name: main" in result.output
 
     config_path = tmp_warehouse / "config.toml"
     with open(config_path, "rb") as f:

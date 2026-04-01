@@ -39,12 +39,12 @@ def document():
 def warehouse_init(name):
     """Initialize a warehouse at the resolved warehouse root."""
     root = wh.get_warehouse_root()
+    actual_name = name or "main"
 
     try:
         wh.init_warehouse(root, name)
         click.echo(f"Initialized warehouse at {root}")
-        if name:
-            click.echo(f"Warehouse name: {name}")
+        click.echo(f"Warehouse name: {actual_name}")
     except FileExistsError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
